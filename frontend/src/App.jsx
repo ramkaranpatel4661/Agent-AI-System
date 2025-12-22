@@ -1,0 +1,130 @@
+import React, { useState, useRef, useEffect } from 'react';
+import VoiceInterface from './components/VoiceInterface';
+import AgentTrace from './components/AgentTrace';
+
+// API Configuration
+const API_URL = "http://localhost:8000";
+
+function App() {
+  const [isListening, setIsListening] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [agentStatus, setAgentStatus] = useState("Ready to help.");
+  const [traceLogs, setTraceLogs] = useState([]);
+
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  const startListening = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = handleAudioStop;
+
+      mediaRecorderRef.current.start();
+      setIsListening(true);
+      setAgentStatus("Listening...");
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      setAgentStatus("Microphone Error");
+    }
+  };
+
+  const stopListening = () => {
+    if (mediaRecorderRef.current && isListening) {
+      mediaRecorderRef.current.stop();
+      setIsListening(false);
+      setAgentStatus("Processing...");
+      setIsProcessing(true);
+    }
+  };
+
+  const handleAudioStop = async () => {
+    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+
+    // Create form data
+    const formData = new FormData();
+    formData.append("file", audioBlob, "recording.webm");
+
+    try {
+      const response = await fetch(`${API_URL}/process-voice`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("API Failure");
+
+      const data = await response.json();
+
+      // Update Trace
+      if (data.trace) setTraceLogs(data.trace);
+
+      // Play Audio Response
+      if (data.agent_audio) {
+        setAgentStatus("Speaking...");
+        setIsProcessing(false);
+        setIsSpeaking(true);
+        playAudio(data.agent_audio);
+      } else {
+        setAgentStatus("Done.");
+        setIsProcessing(false);
+      }
+
+    } catch (error) {
+      console.error("Error processing voice:", error);
+      setAgentStatus("Error. Try again.");
+      setIsProcessing(false);
+    }
+  };
+
+  const playAudio = (base64Audio) => {
+    const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+    audio.onended = () => {
+      setIsSpeaking(false);
+      setAgentStatus("Ready.");
+    };
+    audio.play().catch(e => {
+      console.error("Playback error", e);
+      setIsSpeaking(false);
+      setAgentStatus("Playback Error");
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center pt-20 px-4">
+      <header className="mb-12 text-center">
+        <h1 className="text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
+          SevaBot
+        </h1>
+        <p className="text-slate-400">Your Native Language Government Service Agent</p>
+      </header>
+
+      <main className="w-full flex-1 flex flex-col items-center">
+        <VoiceInterface
+          isListening={isListening}
+          isProcessing={isProcessing}
+          isSpeaking={isSpeaking}
+          onStartListening={startListening}
+          onStopListening={stopListening}
+          agentStatus={agentStatus}
+        />
+
+        <AgentTrace traceLogs={traceLogs} />
+      </main>
+
+      <footer className="py-8 text-slate-600 text-sm">
+        Powered by Gemini • Agentic AI Demo
+      </footer>
+    </div>
+  );
+}
+
+export default App;
