@@ -1,0 +1,28 @@
+
+--- VALIDATION ERROR ---
+1 validation error:
+  {'type': 'missing', 'loc': ('body', 'audio'), 'msg': 'Field required', 'input': None}
+
+  File "D:\Agentic AI System\backend\main.py", line 71, in process_voice
+    POST /process-voice
+
+--- VALIDATION ERROR ---
+1 validation error:
+  {'type': 'missing', 'loc': ('body', 'audio'), 'msg': 'Field required', 'input': None}
+
+  File "D:\Agentic AI System\backend\main.py", line 71, in process_voice
+    POST /process-voice
+
+--- VALIDATION ERROR ---
+1 validation error:
+  {'type': 'missing', 'loc': ('body', 'audio'), 'msg': 'Field required', 'input': None}
+
+  File "D:\Agentic AI System\backend\main.py", line 71, in process_voice
+    POST /process-voice
+
+--- VALIDATION ERROR ---
+1 validation error:
+  {'type': 'missing', 'loc': ('body', 'audio'), 'msg': 'Field required', 'input': None}
+
+  File "D:\Agentic AI System\backend\main.py", line 71, in process_voice
+    POST /process-voice
