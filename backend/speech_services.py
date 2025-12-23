@@ -1,31 +1,85 @@
 import os
+import google.generativeai as genai
+from gtts import gTTS
 import base64
-import time
+from io import BytesIO
 
-# MOCK IMPLEMENTATION (No API Key Required)
+# Initialize Gemini (API Key assumed to be loaded in main.py or from environment)
+# We will lazily configure it in the function or assume global config if called after main initialization.
+# For safety, let's grab it here too.
+if "GEMINI_API_KEY" in os.environ:
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-def transcribe_audio(file_path: str, language: str = "hi") -> str:
+def transcribe_audio(file_path: str, language: str = None) -> str:
     """
-    Simulates transcription. 
-    In a real demo, we can't easily parse audio without an API, 
-    so we will pretend the user said a specific phrase for the demo scenario.
+    Transcribes audio using Gemini 1.5 Flash.
     """
-    print(f"[Mock Speech] Transcribing {file_path}...")
-    time.sleep(1.5) # Simulate processing time
-    
-    # Cycle inputs or just pick a standard demo one
-    # For the video, the user will say "Tell me about farmer schemes"
-    return "Mujhe kisan yojana ke baare mein batao" 
+    print(f"[Speech] Transcribing {file_path} using Gemini...")
+    try:
+        # Upload the file to Gemini
+        # valid mime types: audio/wav, audio/mp3, audio/aiff, audio/aac, audio/ogg, audio/flac
+        # We assume the input might be webm from browser. Gemini supports webm (video/audio).
+        
+        myfile = genai.upload_file(file_path)
+        print(f"[Speech] File uploaded: {myfile.name}")
+        
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        # Configure Safety
+        from google.generativeai.types import HarmCategory, HarmBlockThreshold
+        safety_settings = {
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        }
+
+        try:
+            # Prompt for transcription
+            response = model.generate_content([
+                "Listen to this audio and provide a verbatim transcription of what was said. "
+                "If it is in Hindi or another Indian language, transcribe it in the original script (or Romanized if mixed), "
+                "but primarily I need the text content.",
+                myfile
+            ], safety_settings=safety_settings)
+            
+            text = response.text.strip()
+            print(f"[Speech] Transcription Result: {text}")
+            return text
+
+        except Exception as e: 
+            # Catch MessageToDict/ValueError issues with empty content
+            print(f"[Speech] Transcription blocked or empty. Candidates: {e}")
+            return " " # Return space to avoid 'Empty input' error in agent
+        
+    except Exception as e:
+        print(f"[Speech] Error in transcription: {e}")
+        return f"ERROR: {str(e)}"
 
 def synthesize_speech(text: str) -> str:
     """
-    Simulates TTS. Returns empty string or dummy data.
+    Synthesizes speech using gTTS (Free). Returns base64 string of the MP3.
     """
-    print(f"[Mock Speech] Synthesizing: {text[:50]}...")
-    time.sleep(1)
-    
-    # We cannot generate real audio without an API/Local model.
-    # For the demo, we will just return empty to signal "done" 
-    # or the frontend will just show the text.
-    return ""  
+    print(f"[Speech] Synthesizing with gTTS: {text[:50]}...")
+    try:
+        # Simple heuristics for language detection or default to 'hi' (Hindi) 
+        # since users requested an Indian language agent.
+        # Ideally, we should detect, but 'hi' often works okay for Hinglish too.
+        lang = 'hi' 
+        
+        tts = gTTS(text=text, lang=lang, slow=False)
+        
+        # Save to memory buffer
+        buffer = BytesIO()
+        tts.write_to_fp(buffer)
+        buffer.seek(0)
+        
+        # Encode to base64
+        audio_content = buffer.read()
+        audio_base64 = base64.b64encode(audio_content).decode('utf-8')
+        return audio_base64
+        
+    except Exception as e:
+        print(f"[Speech] Error in synthesis: {e}")
+        return ""
 
