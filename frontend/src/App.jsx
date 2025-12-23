@@ -22,6 +22,7 @@ function App() {
       audioChunksRef.current = [];
 
       mediaRecorderRef.current.ondataavailable = (event) => {
+        console.log("Data Available:", event.data.size);
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
@@ -30,6 +31,7 @@ function App() {
       mediaRecorderRef.current.onstop = handleAudioStop;
 
       mediaRecorderRef.current.start();
+      console.log("Recording started");
       setIsListening(true);
       setAgentStatus("Listening...");
     } catch (err) {
@@ -40,6 +42,7 @@ function App() {
 
   const stopListening = () => {
     if (mediaRecorderRef.current && isListening) {
+      console.log("Stopping recording...");
       mediaRecorderRef.current.stop();
       setIsListening(false);
       setAgentStatus("Processing...");
@@ -48,7 +51,9 @@ function App() {
   };
 
   const handleAudioStop = async () => {
+    console.log("Handle Stop. Chunks:", audioChunksRef.current.length);
     const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+    console.log("Final Blob Size:", audioBlob.size);
 
     // Create form data
     const formData = new FormData();

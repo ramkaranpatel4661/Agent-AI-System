@@ -82,7 +82,25 @@ async def process_voice(file: UploadFile = File(...)):
             }
 
         # 2. Transcribe
+        print(f"[Main] Transcribing file: {temp_filename}...")
         user_text = transcribe_audio(temp_filename)
+        print(f"[Main] Transcription Result: '{user_text}'")
+        
+        if not user_text or user_text.strip() == "" or "NO_SPEECH" in user_text:
+             print("[Main] No valid speech detected in transcription.")
+             os.remove(temp_filename)
+             agent_txt = "I heard something, but I couldn't understand the words. Can you try again?"
+             return {
+                "user_text": "",
+                "agent_text": agent_txt,
+                "agent_audio": synthesize_speech(agent_txt), # Synthesize the error!
+                "trace": ["Gemini detected no speech."]
+            }
+        
+        if user_text.startswith("ERROR"):
+            # Clean up
+            os.remove(temp_filename)
+            return JSONResponse(status_code=500, content={"error": "Transcription failed"})
 
         # 3. Agent reasoning
         agent_result = agent.run(user_text)

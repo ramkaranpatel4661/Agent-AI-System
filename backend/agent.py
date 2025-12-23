@@ -31,7 +31,7 @@ class ServiceAgent:
 
         # Model
         self.model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash',
+            model_name='gemini-flash-latest',
             tools=self.tools_list,
             system_instruction=self.memory.system_prompt["content"],
             safety_settings=self.safety_settings
