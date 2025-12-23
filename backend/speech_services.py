@@ -72,12 +72,21 @@ def synthesize_speech(text: str) -> str:
     """
     print(f"[Speech] Synthesizing with gTTS: {text[:50]}...")
     try:
-        # Simple heuristics for language detection or default to 'hi' (Hindi) 
-        # since users requested an Indian language agent.
-        # Ideally, we should detect, but 'hi' often works okay for Hinglish too.
-        lang = 'hi' 
+        # Dynamic Language Detection
+        # Check for Devanagari characters (Hindi script)
+        def contains_hindi(text):
+            return any('\u0900' <= char <= '\u097f' for char in text)
+
+        if contains_hindi(text):
+            lang = 'hi'
+            tld = 'co.in' # Standard
+        else:
+            lang = 'en'
+            tld = 'co.in' # Indian English Accent
+
+        print(f"[Speech] Detecting Language: {lang} (TLD: {tld})")
         
-        tts = gTTS(text=text, lang=lang, slow=False)
+        tts = gTTS(text=text, lang=lang, tld=tld, slow=False)
         
         # Save to memory buffer
         buffer = BytesIO()

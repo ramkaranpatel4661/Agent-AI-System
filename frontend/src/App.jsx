@@ -21,6 +21,15 @@ function App() {
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
 
+      // VAD Setup
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const analyser = audioContext.createAnalyser();
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      analyser.fftSize = 256;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
       mediaRecorderRef.current.ondataavailable = (event) => {
         console.log("Data Available:", event.data.size);
         if (event.data.size > 0) {
@@ -28,12 +37,40 @@ function App() {
         }
       };
 
-      mediaRecorderRef.current.onstop = handleAudioStop;
+      mediaRecorderRef.current.onstop = () => {
+        handleAudioStop();
+        audioContext.close(); // Cleanup VAD
+      };
 
       mediaRecorderRef.current.start();
       console.log("Recording started");
       setIsListening(true);
       setAgentStatus("Listening...");
+
+      // Silence Detection Loop
+      let silenceStart = Date.now();
+      const silenceThreshold = 10;
+      const silenceDuration = 1500; // 1.5s stop
+
+      const checkSilence = () => {
+        if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
+
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+
+        if (average < silenceThreshold) {
+          if (Date.now() - silenceStart > silenceDuration) {
+            console.log("Auto-Stop: Silence detected.");
+            stopListening();
+            return;
+          }
+        } else {
+          silenceStart = Date.now();
+        }
+        requestAnimationFrame(checkSilence);
+      };
+      checkSilence();
+
     } catch (err) {
       console.error("Error accessing microphone:", err);
       setAgentStatus("Microphone Error");
