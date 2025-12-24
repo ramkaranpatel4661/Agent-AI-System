@@ -4,7 +4,10 @@ import AgentTrace from './components/AgentTrace';
 import ConversationDisplay from './components/ConversationDisplay';
 
 // API Configuration
-const API_URL = "http://localhost:8000";
+let API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+if (API_URL && !API_URL.startsWith("http")) {
+  API_URL = `https://${API_URL}`;
+}
 
 function App() {
   const [isListening, setIsListening] = useState(false);
@@ -146,28 +149,42 @@ function App() {
 
       {/* Background Ambience */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-[100px] animate-blob"></div>
-        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-blue-900/20 rounded-full blur-[100px] animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-900/10 rounded-full blur-[100px] animate-blob animation-delay-4000"></div>
+        <div className="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-violet-900/20 rounded-full blur-[120px] animate-blob mix-blend-screen"></div>
+        <div className="absolute top-[30%] right-[-10%] w-[600px] h-[600px] bg-indigo-900/20 rounded-full blur-[120px] animate-blob animation-delay-2000 mix-blend-screen"></div>
+        <div className="absolute bottom-[-20%] left-[20%] w-[800px] h-[800px] bg-blue-900/20 rounded-full blur-[120px] animate-blob animation-delay-4000 mix-blend-screen"></div>
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
       </div>
 
       <div className="relative z-10 flex flex-col min-h-screen">
 
         {/* Modern Header */}
-        <header className="py-6 px-8 flex items-center justify-between border-b border-white/5 backdrop-blur-sm sticky top-0 bg-slate-950/80">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-saffron-400 via-white to-indian-green-400 p-0.5 shadow-lg shadow-indigo-500/20">
-              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-saffron-400 to-indian-green-400">S</span>
+        <header className="py-6 px-8 flex items-center justify-between sticky top-0 z-50">
+          <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-xl border-b border-white/5"></div>
+
+          <div className="relative flex items-center gap-4">
+            <div className="relative group cursor-pointer">
+              <div className="absolute inset-0 bg-gradient-to-tr from-violet-600 to-indigo-600 rounded-xl blur-lg opacity-60 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="relative w-12 h-12 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-violet-500/20 to-indigo-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-white to-slate-400">S</span>
               </div>
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-100">SevaBot</h1>
-              <p className="text-xs text-slate-400 font-medium">Government Service Agent</p>
+              <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                SevaBot
+                <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-300 font-mono uppercase tracking-wider">
+                  Beta
+                </span>
+              </h1>
+              <p className="text-xs text-slate-400 font-medium">Next-Gen Government Interface</p>
             </div>
           </div>
-          <div className="text-xs text-slate-500 font-mono hidden md:block">
-            v1.0 • Gemini Powered
+
+          <div className="relative hidden md:flex items-center gap-6">
+            <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              System Online
+            </div>
           </div>
         </header>
 
