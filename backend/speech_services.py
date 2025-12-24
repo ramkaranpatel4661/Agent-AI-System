@@ -23,7 +23,7 @@ def transcribe_audio(file_path: str, language: str = None) -> str:
         myfile = genai.upload_file(file_path, mime_type="audio/webm")
         print(f"[Speech] File uploaded: {myfile.name} (URI: {myfile.uri})")
         
-        model = genai.GenerativeModel("gemini-flash-latest")
+        model = genai.GenerativeModel("gemini-1.5-flash")
         
         # Configure Safety
         from google.generativeai.types import HarmCategory, HarmBlockThreshold
@@ -37,7 +37,7 @@ def transcribe_audio(file_path: str, language: str = None) -> str:
         import time
         from google.api_core import exceptions
         
-        max_retries = 3
+        max_retries = 5
         for attempt in range(max_retries):
             try:
                 # Prompt for transcription
@@ -54,8 +54,9 @@ def transcribe_audio(file_path: str, language: str = None) -> str:
                 return text
 
             except exceptions.ResourceExhausted:
-                print(f"[Speech] Rate limit hit. Retrying in {(attempt+1)*2}s...")
-                time.sleep((attempt + 1) * 2)
+                wait_time = (attempt + 1) * 5
+                print(f"[Speech] Rate limit hit. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
             except Exception as e: 
                 print(f"[Speech] Transcription blocked or empty. Candidates: {e}")
                 return " " 
@@ -101,4 +102,3 @@ def synthesize_speech(text: str) -> str:
     except Exception as e:
         print(f"[Speech] Error in synthesis: {e}")
         return ""
-

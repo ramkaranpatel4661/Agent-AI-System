@@ -10,6 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel
+
+class TextInput(BaseModel):
+    text: str
 
 from agent import ServiceAgent
 from speech_services import transcribe_audio, synthesize_speech
@@ -60,6 +64,39 @@ def read_root():
 def reset_memory():
     agent.memory.clear()
     return {"status": "Memory cleared"}
+
+@app.post("/process-text")
+async def process_text(input: TextInput):
+    try:
+        user_text = input.text
+        print(f"[Main] Received Text: '{user_text}'")
+
+        if not user_text or user_text.strip() == "":
+             return {
+                "user_text": "",
+                "agent_text": "I didn't hear anything.",
+                "agent_audio": "",
+                "trace": ["Empty text received"]
+            }
+
+        # Agent reasoning
+        agent_result = agent.run(user_text)
+        agent_text = agent_result["response"]
+        trace = agent_result["trace"]
+
+        # TTS
+        audio_base64 = synthesize_speech(agent_text)
+
+        return {
+            "user_text": user_text,
+            "agent_text": agent_text,
+            "agent_audio": audio_base64,
+            "trace": trace
+        }
+
+    except Exception as e:
+        print("PROCESS TEXT ERROR:", e)
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/process-voice")
 async def process_voice(file: UploadFile = File(...)):

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import VoiceInterface from './components/VoiceInterface';
 import AgentTrace from './components/AgentTrace';
+import ConversationDisplay from './components/ConversationDisplay';
 
 // API Configuration
 const API_URL = "http://localhost:8000";
@@ -10,103 +11,103 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [agentStatus, setAgentStatus] = useState("Ready to help.");
+
+  // New States for UI Display
+  const [userText, setUserText] = useState("");
+  const [agentText, setAgentText] = useState("");
   const [traceLogs, setTraceLogs] = useState([]);
 
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const recognitionRef = useRef(null);
 
-  const startListening = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
+  useEffect(() => {
+    // Initialize Speech Recognition
+    if ('webkitSpeechRecognition' in window) {
+      const recognition = new window.webkitSpeechRecognition();
+      recognition.continuous = false; // Stop after one sentence/phrase
+      recognition.interimResults = false;
+      recognition.lang = 'en-US'; // Default, can be dynamic
 
-      // VAD Setup
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const analyser = audioContext.createAnalyser();
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
-      analyser.fftSize = 256;
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        console.log("Data Available:", event.data.size);
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
+      recognition.onstart = () => {
+        setIsListening(true);
+        setAgentStatus("Listening...");
+        // Clear previous conversation on new interaction start? 
+        // Or keep it? Users prefer keeping context usually.
+        // Let's clear for cleaner demo feel or keep for chat feel.
+        // For now, let's keep it but clear when *starting* a new one?
+        // Actually, clearing creates a "session" feel.
+        // setUserText(""); 
+        // setAgentText("");
+        console.log("Speech recognition started");
       };
 
-      mediaRecorderRef.current.onstop = () => {
-        handleAudioStop();
-        audioContext.close(); // Cleanup VAD
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log("Transcript:", transcript);
+        setUserText(transcript); // Show immediately
+        handleSpeechResult(transcript);
       };
 
-      mediaRecorderRef.current.start();
-      console.log("Recording started");
-      setIsListening(true);
-      setAgentStatus("Listening...");
-
-      // Silence Detection Loop
-      let silenceStart = Date.now();
-      const silenceThreshold = 10;
-      const silenceDuration = 1500; // 1.5s stop
-
-      const checkSilence = () => {
-        if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
-
-        analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-
-        if (average < silenceThreshold) {
-          if (Date.now() - silenceStart > silenceDuration) {
-            console.log("Auto-Stop: Silence detected.");
-            stopListening();
-            return;
-          }
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error", event.error);
+        if (event.error === 'no-speech') {
+          setAgentStatus("No speech detected. Try again.");
         } else {
-          silenceStart = Date.now();
+          setAgentStatus("Error. Try again.");
         }
-        requestAnimationFrame(checkSilence);
+        setIsListening(false);
       };
-      checkSilence();
 
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-      setAgentStatus("Microphone Error");
+      recognition.onend = () => {
+        setIsListening(false);
+        // Don't reset status here if we are processing, handled in onresult
+        console.log("Speech recognition ended");
+      };
+
+      recognitionRef.current = recognition;
+    } else {
+      setAgentStatus("Browser not supported.");
+      console.error("Web Speech API not supported");
+    }
+  }, []);
+
+  const startListening = () => {
+    if (recognitionRef.current && !isListening) {
+      // Clear previous text for a fresh focus
+      setUserText("");
+      setAgentText("");
+      try {
+        recognitionRef.current.start();
+      } catch (e) {
+        console.error("Start error:", e);
+      }
     }
   };
 
   const stopListening = () => {
-    if (mediaRecorderRef.current && isListening) {
-      console.log("Stopping recording...");
-      mediaRecorderRef.current.stop();
-      setIsListening(false);
-      setAgentStatus("Processing...");
-      setIsProcessing(true);
+    if (recognitionRef.current && isListening) {
+      recognitionRef.current.stop();
     }
   };
 
-  const handleAudioStop = async () => {
-    console.log("Handle Stop. Chunks:", audioChunksRef.current.length);
-    const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-    console.log("Final Blob Size:", audioBlob.size);
-
-    // Create form data
-    const formData = new FormData();
-    formData.append("file", audioBlob, "recording.webm");
+  const handleSpeechResult = async (text) => {
+    setAgentStatus("Processing...");
+    setIsProcessing(true);
 
     try {
-      const response = await fetch(`${API_URL}/process-voice`, {
+      const response = await fetch(`${API_URL}/process-text`, {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: text }),
       });
 
       if (!response.ok) throw new Error("API Failure");
 
       const data = await response.json();
 
-      // Update Trace
+      // Update UI with Agent Response
+      setAgentText(data.agent_text);
       if (data.trace) setTraceLogs(data.trace);
 
       // Play Audio Response
@@ -121,7 +122,7 @@ function App() {
       }
 
     } catch (error) {
-      console.error("Error processing voice:", error);
+      console.error("Error processing text:", error);
       setAgentStatus("Error. Try again.");
       setIsProcessing(false);
     }
@@ -141,30 +142,76 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center pt-20 px-4">
-      <header className="mb-12 text-center">
-        <h1 className="text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-teal-400 to-blue-500 mb-2">
-          SevaBot
-        </h1>
-        <p className="text-slate-400">Your Native Language Government Service Agent</p>
-      </header>
+    <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-indigo-500/30">
 
-      <main className="w-full flex-1 flex flex-col items-center">
-        <VoiceInterface
-          isListening={isListening}
-          isProcessing={isProcessing}
-          isSpeaking={isSpeaking}
-          onStartListening={startListening}
-          onStopListening={stopListening}
-          agentStatus={agentStatus}
-        />
+      {/* Background Ambience */}
+      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-[100px] animate-blob"></div>
+        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-blue-900/20 rounded-full blur-[100px] animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-900/10 rounded-full blur-[100px] animate-blob animation-delay-4000"></div>
+      </div>
 
-        <AgentTrace traceLogs={traceLogs} />
-      </main>
+      <div className="relative z-10 flex flex-col min-h-screen">
 
-      <footer className="py-8 text-slate-600 text-sm">
-        Powered by Gemini • Agentic AI Demo
-      </footer>
+        {/* Modern Header */}
+        <header className="py-6 px-8 flex items-center justify-between border-b border-white/5 backdrop-blur-sm sticky top-0 bg-slate-950/80">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-saffron-400 via-white to-indian-green-400 p-0.5 shadow-lg shadow-indigo-500/20">
+              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-saffron-400 to-indian-green-400">S</span>
+              </div>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-100">SevaBot</h1>
+              <p className="text-xs text-slate-400 font-medium">Government Service Agent</p>
+            </div>
+          </div>
+          <div className="text-xs text-slate-500 font-mono hidden md:block">
+            v1.0 • Gemini Powered
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 w-full max-w-5xl mx-auto flex flex-col items-center justify-between pt-8 pb-12 px-4">
+
+          {/* Top Section: Conversation */}
+          <section className="w-full flex-1 flex flex-col justify-end min-h-[40vh] mb-12">
+            {!userText && !agentText ? (
+              <div className="text-center text-slate-500 space-y-4 my-auto">
+                <div className="w-16 h-1 bg-gradient-to-r from-transparent via-slate-700 to-transparent mx-auto rounded-full" />
+                <p>Tap the microphone to start speaking</p>
+              </div>
+            ) : (
+              <ConversationDisplay userText={userText} agentText={agentText} />
+            )}
+          </section>
+
+          {/* Bottom Section: Controls */}
+          <section className="w-full flex flex-col items-center space-y-8 sticky bottom-8">
+            <VoiceInterface
+              isListening={isListening}
+              isProcessing={isProcessing}
+              isSpeaking={isSpeaking}
+              onStartListening={startListening}
+              onStopListening={stopListening}
+              agentStatus={agentStatus}
+            />
+
+            {/* Trace Drawer (Collapsible-ish via scroll in future, for now standard) */}
+            <div className="w-full max-w-2xl px-2">
+              <details className="group">
+                <summary className="list-none flex items-center justify-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-indigo-400 transition-colors py-2">
+                  <span className="border-b border-transparent group-hover:border-indigo-400/50">View Agent Reasoning</span>
+                </summary>
+                <div className="mt-4">
+                  <AgentTrace traceLogs={traceLogs} />
+                </div>
+              </details>
+            </div>
+          </section>
+
+        </main>
+      </div>
     </div>
   );
 }
