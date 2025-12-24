@@ -13,11 +13,13 @@ services:
       - key: GEMINI_API_KEY
         sync: false # User must enter this manually in dashboard or prompt
 
-staticSites:
-  - name: sevabot-frontend
+  # Frontend Service (Static Site)
+  - type: web
+    name: sevabot-frontend
+    env: static
     rootDir: frontend
     buildCommand: npm install && npm run build
-    publishDir: dist
+    staticPublishPath: ./dist
     plan: free
     envVars:
       - key: VITE_API_URL
